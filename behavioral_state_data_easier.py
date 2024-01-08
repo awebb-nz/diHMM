@@ -11,6 +11,7 @@ import pickle
 import json
 import re
 
+# the password can be found at https://int-brain-lab.github.io/iblenv/notebooks_external/data_download.html
 one = ONE(base_url='https://openalyx.internationalbrainlab.org', password='*****')
 
 regexp = re.compile(r'Subjects/\w*/((\w|-)+)/_ibl')
