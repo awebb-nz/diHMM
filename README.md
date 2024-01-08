@@ -1,8 +1,7 @@
 This code relies on the installation of two packages, as described here:
 
-
-The data for this analysis is downloaded with the script:
-behavioral_state_data_easier.py (note that you will need to get the correct password from https://int-brain-lab.github.io/iblenv/notebooks_external/data_download.html)
+The data for this analysis is downloaded with the script (note that you will need to get the correct password from https://int-brain-lab.github.io/iblenv/notebooks_external/data_download.html):
+behavioral_state_data_easier.py
 
 dynamic_GLMiHMM_fit.py then fits the diHMM model to the specified subjects
 
