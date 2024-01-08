@@ -1,4 +1,6 @@
-This code relies on the installation of two packages, as described here:
+This code relies on the installation of two packages, which are custom extensions of existing packages, as described there: \
+https://github.com/SebastianBruijns/sab_pybasicbayes \
+https://github.com/SebastianBruijns/sab_pyhsmm
 
 The data for this analysis is downloaded with the script (note that you will need to get the correct password from https://int-brain-lab.github.io/iblenv/notebooks_external/data_download.html): \
 ``behavioral_state_data_easier.py``
