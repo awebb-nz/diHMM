@@ -135,17 +135,17 @@ def threshold_search(xy, z, test, mode_prefix, subject, fit_type):
 def conditions_fulfilled(z, xy, conds):
     # check whether a sample, as projected onto PC space, fulfills all desired conditions
     works = z > conds[0]
-    if conds[1]:
+    if conds[1] is not None:
         works = np.logical_and(works, xy[0] > conds[1])
-    if conds[2]:
+    if conds[2] is not None:
         works = np.logical_and(works, xy[0] < conds[2])
-    if conds[3]:
+    if conds[3] is not None:
         works = np.logical_and(works, xy[1] > conds[3])
-    if conds[4]:
+    if conds[4] is not None:
         works = np.logical_and(works, xy[1] < conds[4])
-    if conds[5]:
+    if conds[5] is not None:
         works = np.logical_and(works, xy[2] > conds[5])
-    if conds[6]:
+    if conds[6] is not None:
         works = np.logical_and(works, xy[2] < conds[6])
 
     return works
