@@ -61,7 +61,7 @@ cont_mapping = np.vectorize(num_to_contrast.get)
 data_folder = 'session_data'
 
 # test subjects:
-subjects = ['KS014']
+subjects = ['KS096']
 num_subjects = len(subjects)
 subjects = [a for a in subjects for i in range(3)]
 # seeds = [505, 506, 507, 505, 506, 508, 509, 506, 507, 508, 505, 506, 508, 509, 505, 506, 507, 508, 509, 506, 507, 508, 505, 506, 507, 508, 505, 506, 507, 508, 505, 506, 507, 506, 507, 508, 506, 507, 508, 506, 507, 508]
@@ -165,7 +165,7 @@ for loop_count_i, (s, cv_num, seed) in enumerate(zip(subjects, cv_nums, seeds)):
     if params['fit_type'] == 'prebias':
         till_session = info_dict['bias_start']
     elif params['fit_type'] == 'bias' or params['fit_type'] == 'zoe_style' or params['fit_type'] == 'all':
-        till_session = info_dict['n_sessions']
+        till_session = info_dict['ephys_start']
     elif params['fit_type'] == 'prebias_plus':
         till_session = min(info_dict['bias_start'] + 6, info_dict['n_sessions'])  # 6 here will actually turn into 7 later
 
@@ -176,7 +176,7 @@ for loop_count_i, (s, cv_num, seed) in enumerate(zip(subjects, cv_nums, seeds)):
     if params['obs_dur'] == 'glm':
         n_inputs = len(params['regressors'])
         T = till_session - from_session + (params['fit_type'] != 'prebias')
-        obs_hypparams = {'n_inputs': n_inputs, 'T': T, 'jumplimit': params['jumplimit'], 'prior_mean': params['init_mean'],
+        obs_hypparams = {'n_regressors': n_inputs, 'T': T, 'jumplimit': params['jumplimit'], 'prior_mean': params['init_mean'],
                          'P_0': params['init_var'] * np.eye(n_inputs), 'Q': params['fit_variance'] * np.tile(np.eye(n_inputs), (T, 1, 1))}
         obs_distns = [distributions.Dynamic_GLM(**obs_hypparams) for state in range(params['n_states'])]
     else:
@@ -222,7 +222,7 @@ for loop_count_i, (s, cv_num, seed) in enumerate(zip(subjects, cv_nums, seeds)):
                     obs_distns=obs_distns,
                     var_prior=params['fit_variance'])
 
-    print(from_session, till_session + (params['fit_type'] != 'prebias'))
+    print(from_session, till_session)
 
     if params['cross_val']:
         rng = np.random.RandomState(params['CROSS_VAL_SEED'])
