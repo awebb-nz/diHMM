@@ -48,8 +48,7 @@ def eval_cross_val(models, data, unmasked_data, n_all_states):
                     ll = m.obs_distns[s].log_likelihood(d[mask], sess_time)
                     lls[i] += np.sum(ll)
     lls /= cross_val_n
-    ll_mean = np.mean(lls[-1000:])
-    return lls, ll_mean
+    return lls
 
 
 # following Nick Roys contrasts: following tanh transformation of the contrasts x has a
@@ -313,6 +312,7 @@ for loop_count_i, (s, cv_num, seed) in enumerate(zip(subjects, cv_nums, seeds)):
 
     time_save = time.time()
     likes = np.zeros(params['n_samples'])
+    cross_val_lls = []
     with warnings.catch_warnings():  # ignore the scipy warning
         warnings.simplefilter("ignore")
         for j in range(params['n_samples']):
@@ -338,13 +338,14 @@ for loop_count_i, (s, cv_num, seed) in enumerate(zip(subjects, cv_nums, seeds)):
                 else:
                     pickle.dump(models, open(folder + id + '_{}.p'.format(j // 4001), 'wb'))
                     if j % 4000 == 0:
+                        cross_val_lls += eval_cross_val(models, posteriormodel.datas, data_save, n_all_states=params['n_states'])
                         models = []
     print(time.time() - time_save)
 
     if params['cross_val']:
-        lls, lls_mean = eval_cross_val(models, posteriormodel.datas, data_save, n_all_states=params['n_states'])
-        params['cross_val_preds'] = lls
-        params['cross_val_preds'] = params['cross_val_preds'].tolist()
+        cross_val_lls += eval_cross_val(models, posteriormodel.datas, data_save, n_all_states=params['n_states'])
+        lls_mean = np.mean(cross_val_lls[-1000:])
+        params['cross_val_preds'] = cross_val_lls.tolist()
 
     print(id)
     if 'exp_filter' in params:
