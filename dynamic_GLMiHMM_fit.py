@@ -61,15 +61,16 @@ cont_mapping = np.vectorize(num_to_contrast.get)
 data_folder = 'session_data'
 
 # test subjects:
-subjects = ['KS096']
+subjects = ['NYU-07', 'NYU-12', 'CSHL_003', 'CSHL_002', 'NYU-13', 'CSHL_001', 'ibl_witten_12', 'CSHL_014', 'CSHL_010', 'ibl_witten_16', 'CSHL_004', 'NYU-02', 'CSHL_006', 'NYU-09', 'CSHL_008']
+subjects = ['NYU-07']
 num_subjects = len(subjects)
-subjects = [a for a in subjects for i in range(3)]
+subjects = [a for a in subjects for i in range(5)]
 # seeds = [505, 506, 507, 505, 506, 508, 509, 506, 507, 508, 505, 506, 508, 509, 505, 506, 507, 508, 509, 506, 507, 508, 505, 506, 507, 508, 505, 506, 507, 508, 505, 506, 507, 506, 507, 508, 506, 507, 508, 506, 507, 508]
-seeds = list(range(506, 509))
-seeds = seeds * num_subjects
+seeds = [102]
+seeds = seeds * 5
 # lst = list(range(10))
 # cv_nums = [a for a in lst for i in range(8)]
-cv_nums = [0] * 3 * num_subjects
+cv_nums = [0, 1, 2, 3, 4] * num_subjects
 
 seeds = [seeds[int(sys.argv[1])]]
 cv_nums = [cv_nums[int(sys.argv[1])]]
@@ -120,7 +121,8 @@ for loop_count_i, (s, cv_num, seed) in enumerate(zip(subjects, cv_nums, seeds)):
     # Parameter needed if one uses a Categorical distribution
     params['conditioned_on'] = 'nothing'
 
-    params['cross_val'] = False
+    params['cross_val'] = True
+    params['cross_val_type'] = ['normal', 'lenca'][1]
     params['cross_val_fold'] = 10
     params['CROSS_VAL_SEED'] = 4  # Do not change this, it's 4
 
@@ -228,6 +230,7 @@ for loop_count_i, (s, cv_num, seed) in enumerate(zip(subjects, cv_nums, seeds)):
         rng = np.random.RandomState(params['CROSS_VAL_SEED'])
 
     data_save = []
+    lenca_counter = 0
     for j in range(from_session, till_session + (params['fit_type'] != 'prebias')):
         try:
             data = pickle.load(open("./{}/{}_fit_info_{}.p".format(data_folder, params['subject'], j), "rb"))
@@ -241,7 +244,7 @@ for loop_count_i, (s, cv_num, seed) in enumerate(zip(subjects, cv_nums, seeds)):
             for i in range(data.shape[0]):
                 data[i, 0] = num_to_contrast[data[i, 0]]
             mask = data[:, 1] != 1
-            mask[0] = False
+            # mask[0] = False  # consider the first trial as well
             if params['fit_type'] == 'zoe_style':
                 mask[90:] = False
             mega_data = np.empty((np.sum(mask), n_inputs + 1))
@@ -289,9 +292,19 @@ for loop_count_i, (s, cv_num, seed) in enumerate(zip(subjects, cv_nums, seeds)):
         data_save.append(mega_data.copy())
 
         if params['cross_val']:
-            test_sets = np.tile(np.arange(params['cross_val_fold']), mega_data.shape[0] // params['cross_val_fold'] + 1)[:mega_data.shape[0]]
-            rng.shuffle(test_sets)
-            mega_data[:, -1][test_sets == params['cross_val_num']] = None
+            if params['cross_val_type'] == 'normal':
+                test_sets = np.tile(np.arange(params['cross_val_fold']), mega_data.shape[0] // params['cross_val_fold'] + 1)[:mega_data.shape[0]]
+                rng.shuffle(test_sets)
+                mega_data[:, -1][test_sets == params['cross_val_num']] = None
+            elif params['cross_val_type'] == 'lenca':
+                lenca_info = np.load("./lenca_data/" + "{}_data_and_indices_CV_5_folds.npz".format(params['subject']))
+                trials_to_nan = lenca_info['presentTest'][params['cross_val_num']][lenca_counter:lenca_counter + mega_data.shape[0]]
+                assert trials_to_nan.shape[0] == (lenca_info['sessInd'][j+1] - lenca_info['sessInd'][j])
+                lenca_counter += mega_data.shape[0]
+                mega_data[trials_to_nan, -1] = None
+            else:
+                print('Incorrectly specified crossvalidation type')
+                quit()
 
         posteriormodel.add_data(mega_data)
 
