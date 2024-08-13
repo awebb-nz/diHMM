@@ -57,18 +57,14 @@ contrast_to_num = {-1.: 0, -0.987: 1, -0.848: 2, -0.555: 3, -0.302: 4, 0.: 5, 0.
 num_to_contrast = {v: k for k, v in contrast_to_num.items()}
 cont_mapping = np.vectorize(num_to_contrast.get)
 
-data_folder = 'session_data'
-
 # test subjects:
+file_prefix = ['.', '/usr/src/app'][1]
+data_folder = 'session_data'
 subjects = ['NYU-07', 'NYU-12', 'CSHL_003', 'CSHL_002', 'NYU-13', 'CSHL_001', 'ibl_witten_12', 'CSHL_014', 'CSHL_010', 'ibl_witten_16', 'CSHL_004', 'NYU-02', 'CSHL_006', 'NYU-09', 'CSHL_008']
-subjects = ['NYU-07']
 num_subjects = len(subjects)
 subjects = [a for a in subjects for i in range(5)]
 # seeds = [505, 506, 507, 505, 506, 508, 509, 506, 507, 508, 505, 506, 508, 509, 505, 506, 507, 508, 509, 506, 507, 508, 505, 506, 507, 508, 505, 506, 507, 508, 505, 506, 507, 506, 507, 508, 506, 507, 508, 506, 507, 508]
-seeds = [102]
-seeds = seeds * 5
-# lst = list(range(10))
-# cv_nums = [a for a in lst for i in range(8)]
+seeds = [100, 101, 102, 103, 104] * num_subjects
 cv_nums = [0, 1, 2, 3, 4] * num_subjects
 
 seeds = [seeds[int(sys.argv[1])]]
@@ -130,7 +126,7 @@ for loop_count_i, (s, cv_num, seed) in enumerate(zip(subjects, cv_nums, seeds)):
     params['n_states'] = 15
     params['n_samples'] = 60000 if params['obs_dur'] == 'glm' else 12000
     if params['cross_val']:
-        params['n_samples'] = 12000
+        params['n_samples'] = 16000
     if s.startswith("GLM_Sim"):
         print("reduced sample size")
         params['n_samples'] = 48000
@@ -141,7 +137,7 @@ for loop_count_i, (s, cv_num, seed) in enumerate(zip(subjects, cv_nums, seeds)):
 
     # find a unique identifier to save this fit
     while True:
-        folder = "./dynamic_GLMiHMM_crossvals/"
+        folder = file_prefix + "/dynamic_GLMiHMM_crossvals/"
         rand_id = np.random.randint(1000)
         if params['cross_val']:
             id = "{}_crossval_{}_{}_var_{}_{}_{}".format(params['subject'], params['cross_val_num'], params['fit_type'],
@@ -161,7 +157,7 @@ for loop_count_i, (s, cv_num, seed) in enumerate(zip(subjects, cv_nums, seeds)):
     params['file_name'] = folder + id
     np.random.seed(params['seed'])
 
-    info_dict = pickle.load(open("./{}/{}_info_dict.p".format(data_folder, params['subject']), "rb"))
+    info_dict = pickle.load(open(file_prefix + "/{}/{}_info_dict.p".format(data_folder, params['subject']), "rb"))
     # Determine session numbers
     if params['fit_type'] == 'prebias':
         till_session = info_dict['bias_start']
@@ -232,7 +228,7 @@ for loop_count_i, (s, cv_num, seed) in enumerate(zip(subjects, cv_nums, seeds)):
     lenca_counter = 0
     for j in range(from_session, till_session + (params['fit_type'] != 'prebias')):
         try:
-            data = pickle.load(open("./{}/{}_fit_info_{}.p".format(data_folder, params['subject'], j), "rb"))
+            data = pickle.load(open(file_prefix + "/{}/{}_fit_info_{}.p".format(data_folder, params['subject'], j), "rb"))
         except FileNotFoundError:
             continue
         if data.shape[0] == 0:
@@ -269,7 +265,7 @@ for loop_count_i, (s, cv_num, seed) in enumerate(zip(subjects, cv_nums, seeds)):
                     weighted_prev_ans = np.convolve(np.append(0, weighted_prev_ans), params['exp_filter'])[:-(params['exp_filter'].shape[0])]
                     mega_data[:, i] = weighted_prev_ans[mask]
                 elif reg == 'WSLS':
-                    side_info = pickle.load(open("./{}/{}_side_info_{}.p".format(data_folder, params['subject'], j), "rb"))
+                    side_info = pickle.load(open(file_prefix + "/{}/{}_side_info_{}.p".format(data_folder, params['subject'], j), "rb"))
                     prev_reward = side_info[:, 1]
                     prev_reward[1:] = prev_reward[:-1]
                     prev_ans = data[:, 1].copy()
@@ -296,19 +292,19 @@ for loop_count_i, (s, cv_num, seed) in enumerate(zip(subjects, cv_nums, seeds)):
                 rng.shuffle(test_sets)
                 mega_data[:, -1][test_sets == params['cross_val_num']] = None
             elif params['cross_val_type'] == 'lenca':
-                lenca_info = np.load("./lenca_data/" + "{}_data_and_indices_CV_5_folds.npz".format(params['subject']))
+                lenca_info = np.load(file_prefix + "/lenca_data/" + "{}_data_and_indices_CV_5_folds.npz".format(params['subject']))
                 trials_to_nan = lenca_info['presentTest'][params['cross_val_num']][lenca_counter:lenca_counter + mega_data.shape[0]]
                 assert trials_to_nan.shape[0] == (lenca_info['sessInd'][j+1] - lenca_info['sessInd'][j])
                 lenca_counter += mega_data.shape[0]
-                mega_data[trials_to_nan, -1] = None
+                mega_data[trials_to_nan.astype(bool), -1] = None
             else:
                 print('Incorrectly specified crossvalidation type')
                 quit()
 
         posteriormodel.add_data(mega_data)
 
-    if not os.path.isfile('./{}/data_save_{}.p'.format(data_folder, params['subject'])):
-        pickle.dump(data_save, open('./{}/data_save_{}.p'.format(data_folder, params['subject']), 'wb'))
+    if not os.path.isfile(file_prefix + '/{}/data_save_{}.p'.format(data_folder, params['subject'])):
+        pickle.dump(data_save, open(file_prefix + '/{}/data_save_{}.p'.format(data_folder, params['subject']), 'wb'))
 
     time_save = time.time()
     likes = np.zeros(params['n_samples'])
@@ -338,12 +334,12 @@ for loop_count_i, (s, cv_num, seed) in enumerate(zip(subjects, cv_nums, seeds)):
                 else:
                     pickle.dump(models, open(folder + id + '_{}.p'.format(j // 4001), 'wb'))
                     if j % 4000 == 0:
-                        cross_val_lls += eval_cross_val(models, posteriormodel.datas, data_save, n_all_states=params['n_states'])
+                        cross_val_lls = np.append(cross_val_lls, eval_cross_val(models, copy.deepcopy(posteriormodel.datas), data_save, n_all_states=params['n_states']))
                         models = []
     print(time.time() - time_save)
 
     if params['cross_val']:
-        cross_val_lls += eval_cross_val(models, posteriormodel.datas, data_save, n_all_states=params['n_states'])
+        cross_val_lls = np.append(cross_val_lls, eval_cross_val(models, copy.deepcopy(posteriormodel.datas), data_save, n_all_states=params['n_states']))
         lls_mean = np.mean(cross_val_lls[-1000:])
         params['cross_val_preds'] = cross_val_lls.tolist()
 
