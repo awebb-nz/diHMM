@@ -10,9 +10,12 @@ import seaborn as sns
 import pickle
 import json
 import re
+import warnings
+
+warnings.simplefilter(action='ignore')
 
 # the password can be found at https://int-brain-lab.github.io/iblenv/notebooks_external/data_download.html
-one = ONE(base_url='https://openalyx.internationalbrainlab.org', password='*****')
+one = ONE()
 
 regexp = re.compile(r'Subjects/\w*/((\w|-)+)/_ibl')
 datasets = one.alyx.rest('datasets', 'list', tag='2023_Q4_Bruijns_et_al')
@@ -21,9 +24,9 @@ datasets = one.alyx.rest('datasets', 'list', tag='2023_Q4_Bruijns_et_al')
 subjects = [regexp.search(ds['file_records'][0]['relative_path']).group(1) for ds in datasets]
 # reduce to list of unique names
 subjects = list(set(subjects))
-
 data_folder = 'session_data'
 contrast_to_num = {-1.: 0, -0.5: 1, -0.25: 2, -0.125: 3, -0.0625: 4, 0: 5, 0.0625: 6, 0.125: 7, 0.25: 8, 0.5: 9, 1.: 10}
+
 
 for subject in subjects:
     trials = one.load_aggregate('subjects', subject, '_ibl_subjectTrials.table')
@@ -76,16 +79,18 @@ for subject in subjects:
         easy_per[i] = np.mean(df['feedbackType'][np.logical_or(df['signed_contrast'] == 0, df['signed_contrast'] == 10)])
         hard_per[i] = np.mean(df['feedbackType'][df['signed_contrast'] == 5])
 
-        if 'bias_start' not in info_dict and df.task_protocol[0].startswith('_iblrig_tasks_biasedChoiceWorld'):
+        print(df.task_protocol.iloc[0])
+
+        if 'bias_start' not in info_dict and df.task_protocol.iloc[0].startswith('_iblrig_tasks_biasedChoiceWorld'):
             info_dict['bias_start'] = i
 
-        if 'ephys_start' not in info_dict and df.task_protocol[0].startswith('_iblrig_tasks_ephysChoiceWorld'):
+        if 'ephys_start' not in info_dict and df.task_protocol.iloc[0].startswith('_iblrig_tasks_ephysChoiceWorld'):
             info_dict['ephys_start'] = i
 
         pickle.dump(df, open("./{}/{}_df_{}.p".format(data_folder, subject, i), "wb"))
         
-        info_dict['date_and_session_num'][i] = start_time
-        info_dict['date_and_session_num'][start_time] = i
+        info_dict['date_and_session_num'][i] = str(start_time)
+        info_dict['date_and_session_num'][str(start_time)] = i
 
         side_info = np.zeros((len(df), 2))
         side_info[:, 0] = df['probabilityLeft']
@@ -121,4 +126,4 @@ for subject in subjects:
     sns.despine()
     plt.tight_layout()
     plt.savefig('./figures/behavior/all_of_trainig_{}'.format(subject))
-    plt.show()
+    plt.close()
