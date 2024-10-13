@@ -4,14 +4,19 @@
 import os
 import json
 import re
+import numpy as np
 
 prebias_subinfo = {}
 bias_subinfo = {}
 
-fitvar = '0.03'
+fitvar = '0.04'
+
+file_prefix = ['.', '/usr/src/app'][1]
+
+verificator = lambda x: '/summarised_sessions/0_25/' in x['file_name'] and x['fit_variance'] == 0.04 and ('dur' not in x or x['dur'] == 'yes') and np.array_equal(x['dur_params']['r_support'], np.arange(5, 705)) and x['n_states'] == 15 and x['gamma_a_0'] == 0.001 and x['gamma_b_0'] == 1000 and x['alpha_a_0'] == 0.01 and x['alpha_b_0'] == 100
 
 # look through all files
-for filename in os.listdir("./dynamic_GLMiHMM_crossvals/"):
+for filename in os.listdir(file_prefix + "/whole_fits/"):
     if not filename.endswith('.p'):
         continue
 
@@ -25,6 +30,11 @@ for filename in os.listdir("./dynamic_GLMiHMM_crossvals/"):
     seed = result.group(4)
     fit_num = result.group(5)
     chain_num = result.group(6)
+
+    # KS014_0.04_102_522.json
+    infos = json.load(open(file_prefix + "/whole_fits/infos/" + "{}_{}_{}_{}.json".format(subject, fitvar, seed, fit_num), 'r'))
+    if not verificator(infos):
+        continue
 
     # add info to correct dictionary
     if fit_type == 'prebias':
@@ -53,5 +63,5 @@ for s in prebias_subinfo.keys():
         prebias_subinfo[s]["seeds"] = new_seeds
 
 # save results
-json.dump(prebias_subinfo, open("canonical_infos_fitvar_{}.json".format(fitvar), 'w'))
-json.dump(bias_subinfo, open("canonical_infos_bias_fitvar_{}.json".format(fitvar), 'w'))
+json.dump(prebias_subinfo, open(file_prefix + "/canonical_infos_fitvar_{}.json".format(fitvar), 'w'))
+json.dump(bias_subinfo, open(file_prefix + "/canonical_infos_bias_fitvar_{}.json".format(fitvar), 'w'))
