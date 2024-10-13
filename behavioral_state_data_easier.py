@@ -81,10 +81,11 @@ for subject in subjects:
 
         print(df.task_protocol.iloc[0])
 
-        if 'bias_start' not in info_dict and df.task_protocol.iloc[0].startswith('_iblrig_tasks_biasedChoiceWorld'):
+        if 'bias_start' not in info_dict and (df.task_protocol.iloc[0].startswith('_iblrig_tasks_biasedChoiceWorld') or df.task_protocol.iloc[0].startswith('biasedChoiceWorld')):
             info_dict['bias_start'] = i
+            print('start')
 
-        if 'ephys_start' not in info_dict and df.task_protocol.iloc[0].startswith('_iblrig_tasks_ephysChoiceWorld'):
+        if 'ephys_start' not in info_dict and (df.task_protocol.iloc[0].startswith('_iblrig_tasks_ephysChoiceWorld') or df.task_protocol.iloc[0].startswith('ephysChoiceWorld')):
             info_dict['ephys_start'] = i
 
         pickle.dump(df, open("./{}/{}_df_{}.p".format(data_folder, subject, i), "wb"))
