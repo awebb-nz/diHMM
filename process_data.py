@@ -54,15 +54,18 @@ def smooth_exp_array(array, decay):
 
 fit_type = ['prebias', 'bias', 'all', 'prebias_plus', 'zoe_style'][0]
 n_regressors = 4
-exponential_decay = 0.3
+exponential_decay = 0.25
 
+compute_wsls = True
+add_on = "" if not compute_wsls else "_wsls"
+
+num_sess = []
 # if this level of exponential decay has no folder, make it
-if not os.path.exists("./summarised_sessions/{}/".format(str(exponential_decay).replace(".", "_"))):
-    os.makedirs("./summarised_sessions/{}/".format(str(exponential_decay).replace(".", "_")))
+if not os.path.exists("./summarised_sessions/{}{}/".format(str(exponential_decay).replace(".", "_"), add_on)):
+    os.makedirs("./summarised_sessions/{}{}/".format(str(exponential_decay).replace(".", "_"), add_on))
 
 for subject in subjects:
     all_sessions = []
-    print(subject)
     info_dict = pickle.load(open("./session_data/{}_info_dict.p".format(subject), "rb"))
 
     # Determine session numbers
@@ -72,12 +75,17 @@ for subject in subjects:
         till_session = info_dict['ephys_start']
 
     from_session = info_dict['bias_start'] if fit_type in ['bias', 'zoe_style'] else 0
+    num_sess.append(till_session - from_session)
+    print(subject, till_session - from_session)
 
     for j in range(from_session, till_session):
         # load the _fit_info file
         with open("./session_data/{}_fit_info_{}.p".format(subject, j), "rb") as f:
             data = pickle.load(f)
-        
+
+        with open("./session_data/{}_side_info_{}.p".format(subject, j), "rb") as f:
+            side_info = pickle.load(f)
+
         assert data.shape[0] != 0, "Data is empty for subject {} and session {}".format(subject, j)
 
         data[:, 0] = cont_mapping(data[:, 0])
@@ -85,7 +93,7 @@ for subject in subjects:
         if fit_type == 'zoe_style':
             mask[90:] = False
 
-        mega_data = np.empty((np.sum(mask), n_regressors + 2))  # session number, number of regressors, and choice
+        mega_data = np.empty((np.sum(mask), n_regressors + 2 + compute_wsls))  # session number, number of regressors, and choice
 
         mega_data[:, 0] = j  # session number
         mega_data[:, 1] = np.maximum(data[mask, 0], 0)  # rightwards contrasts are positive numbers, otherwise put 0
@@ -100,6 +108,15 @@ for subject in subjects:
         # bias
         mega_data[:, 4] = 1
 
+        # wsls
+        if compute_wsls:
+            answers = data[:, 1].copy() - 1
+            rewards = side_info[:, 1]
+            wsls = np.zeros(data.shape[0])
+            wsls[1:] = answers[:-1]
+            wsls[1:][rewards[:-1] == 0] *= -1
+            mega_data[:, 5] = wsls[mask]
+
         # animal choice, transformed into 0 1 encoding
         mega_data[:, -1] = data[mask, 1] / 2
 
@@ -107,7 +124,8 @@ for subject in subjects:
 
     # turn the list of sessions into a dataframe with correct column names
     all_sessions = np.vstack(all_sessions)
-    df = pd.DataFrame(all_sessions, columns=['session', 'right_contrast', 'left_contrast', 'prev_ans', 'bias', 'choice'])
+    cols = ['session', 'right_contrast', 'left_contrast', 'prev_ans', 'bias', 'choice'] if not compute_wsls else ['session', 'right_contrast', 'left_contrast', 'prev_ans', 'bias', 'wsls', 'choice']
+    df = pd.DataFrame(all_sessions, columns=cols)
 
     # save the dataframe as csv
-    df.to_csv("./summarised_sessions/{}/{}_{}_fit_info.csv".format(str(exponential_decay).replace('.', '_'), subject, fit_type), index=False)
+    df.to_csv("./summarised_sessions/{}{}/{}_{}_fit_info.csv".format(str(exponential_decay).replace('.', '_'), add_on, subject, fit_type), index=False)
