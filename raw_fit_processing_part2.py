@@ -1,5 +1,18 @@
 """
-    This script is used to select samples from a mode, out of all the samples of the used MCMC chains 
+    This script is used to select samples from a mode, out of all the samples of the used MCMC chains
+
+    The code will ask to "Pick level", at which point one types in a lower threshold for the estimated sample probability (of figure ...), e.g.:
+    5e-10
+    Alternatively, if it is necessary to separate out different modes from the posterior, one can type "cond" (for adding conditions), which will cause the code
+    to ask for lower and upper thresholds along all three PC dimensions (x, y, z), followed by another request for a lower density estimate limit.
+
+    Given these, we compute how many samples fulfull the set conditions and their extent along all three PC dimensions. This can be used to ensure that an appropriate
+    number of samples is selected which is purely within a single desired mode. This can be confirmed by typing "yes" when asked whether one is happy.
+
+    The code then asks "Subset by factor?", which can be used for highly concentrated modes which are hard to restrict to a sensible number of samples via a lower threshold.
+    Respond with "yes" or "y", then give an integer n, which subsets the colletion to every nth sample which fulfills the listed conditions.
+
+    Lastly, it presents the option to isolate another mode (if there's a relevant second or third mode), which can be responded with "yes"/"y" if the spiel is to be repeated.
 """
 import json
 import numpy as np
@@ -9,19 +22,14 @@ import matplotlib.pyplot as plt
 import os
 
 
-fit_variance = 0.03
-subjects = ['GLM_Sim_13', 'fip_29', 'fip_16', 'GLM_Sim_12']
+fit_variance = 0.04
+subjects = ['KS014']
 
 def create_mode_indices(test, subject, fit_type):
     """
         This code, together with the figures produced in part 1, is used to select a collection of samples corresponding to 1 or more modes of the posterior
     """
-    try:
-        xy, z = pickle.load(open("multi_chain_saves/xyz_{}_{}_var_{}.p".format(subject, fit_type, fit_variance), 'rb'))
-    except Exception as e:
-        print(e)
-        # this is cluster work
-        return
+    xy, z = pickle.load(open("multi_chain_saves/xyz_{}_{}_var_{}.p".format(subject, fit_type, fit_variance), 'rb'))
 
     print("Mode indices of " + subject)
 
@@ -43,7 +51,7 @@ def create_mode_indices(test, subject, fit_type):
 
 def threshold_search(xy, z, test, mode_prefix, subject, fit_type):
     """
-        Find a good threshold for taking samples
+        Find a good threshold for taking samples, possibly take into account thresholds from the PC dimensions.
     """
     happy = False
     conds = [0, None, None, None, None, None, None]
@@ -150,7 +158,7 @@ def conditions_fulfilled(z, xy, conds):
 
     return works
 
-fit_type = ['prebias', 'bias', 'all', 'prebias_plus', 'zoe_style'][2]
+fit_type = ['prebias', 'bias', 'all', 'prebias_plus', 'zoe_style'][0]
 if fit_type == 'bias':
     loading_info = json.load(open("canonical_infos_bias_fitvar_{}.json".format(fit_variance), 'r'))
 elif fit_type == 'prebias':
@@ -160,8 +168,10 @@ elif fit_type == 'all':
 
 for subject in subjects:
     test = pickle.load(open("multi_chain_saves/canonical_result_{}_{}_var_{}.p".format(subject, fit_type, fit_variance), 'rb'))
-    # if os.path.isfile("multi_chain_saves/{}mode_indices_{}_{}.p".format('first_', subject, fit_type)):
-    #     print("It has been done")
-    #     continue
+
+    info_dict = pickle.load(open("./session_data/{}_info_dict.p".format(subject), "rb"))
+    test.results[0].infos = info_dict  # posthoc adding of info
+    test.results[0].n_contrasts = 11
+    pickle.dump(test, open("multi_chain_saves/canonical_result_{}_{}_var_{}.p".format(subject, fit_type, fit_variance), 'wb'))
     print('Computing sub result')
     create_mode_indices(test, subject, fit_type)
