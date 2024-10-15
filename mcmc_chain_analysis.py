@@ -137,6 +137,8 @@ def sample_statistics(mode_indices, subject, period='prebias'):
 
 
 def find_good_chains_unsplit_greedy(chains1, chains2, chains3, chains4, reduce_to=8, simple=False):
+    """Using the given chains of features, we greedily remove the chains which lower R^hat the most, down to the number supplied as reduce_to
+        (unsplit refers to the fact that we don't split the chains in halves before doing this)."""
     delete_n = - reduce_to + chains1.shape[0]
     mins = np.zeros(delete_n + 1)
     n_chains = chains1.shape[0]
