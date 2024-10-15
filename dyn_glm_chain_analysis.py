@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pyhsmm
 import pickle
-import seaborn as sns
+#import seaborn as sns
 import sys
 from scipy.stats import norm
 from scipy.optimize import minimize
@@ -23,6 +23,8 @@ import pandas as pd
 from analysis_pmf import pmf_type, type2color
 import re
 import datetime
+import time
+from scipy.stats import gaussian_kde
 
 performance_points = np.array([-1, -1, 0, 0])
 
@@ -30,9 +32,10 @@ def pmf_to_perf(pmf):
     # determine performance of a pmf, but only on the omnipresent strongest contrasts
     return np.mean(np.abs(performance_points + pmf[[0, 1, -2, -1]]))
 
-colors = np.genfromtxt('colors.csv', delimiter=',')
+#colors = np.genfromtxt('colors.csv', delimiter=',')
 
 np.set_printoptions(suppress=True)
+file_prefix = ['.', '/usr/src/app'][0]
 
 fs = 16
 num_to_cont = dict(zip(range(11), [-1., -0.5, -.25, -.125, -.062, 0., .062, .125, .25, 0.5, 1.]))
@@ -147,61 +150,48 @@ class MCMC_result_list:
             plt.ylim(top=count_max)
         plt.show()
 
-    def consistency_rsa(self, plot=False, indices=[]):
-        # take trial 30 and trial 3700 (say). We have 4000 iHMM samples - and an
+    def consistency_rsa(self, plot=True, indices=[], mode_prefix=""):
+        # We compute the consistency of state assigments across samples, this will later allow us to cluster trials into states
+        # take trial 30 and trial 3700 (say). We have n iHMM samples - and an
         # assignment of each trial to a state in each sample.
-        # Use an RSA matrix whose (30,3700) entry is the fraction of the 4000
+        # Use an RSA matrix whose (30,3700) entry is the fraction of the n
         # samples for which those states are the same (or different).
 
-        # currently takes entirely too long, roughly a second per sample, coud be at least parallelised
         consistency_mat = np.zeros((self.results[0].n_datapoints, self.results[0].n_datapoints))
-        import time
-        time_save = time.time()
-        for i, m in enumerate([item for sublist in self.results for item in sublist.models]):
+        for i, m in enumerate([item for sublist in self.results for item in sublist.models]):  # for each sample across all chains
             if i not in indices:
                 continue
-            if i % 30 == 0:
-                print(i, time.time() - time_save)
-            states = np.concatenate(m.stateseqs)
-            for s in range(self.results[0].n_all_states):
-                finds = np.where(states == s)[0]
-                consistency_mat[np.meshgrid(finds, finds)] += 1
-        print("Consistency rsa time {}".format(time.time() - time_save))
+            states = np.concatenate(m.stateseqs)  # flatten all sequences into one
+            for s in range(self.results[0].n_all_states):       # for all states
+                finds = np.where(states == s)[0]                # find where it is active
+                consistency_mat[tuple(np.meshgrid(finds, finds))] += 1  # mark all trials pairs where a state co-occurs
         if plot:
             plt.imshow(consistency_mat)
             plt.colorbar()
             plt.tight_layout()
-            plt.savefig("dynamic_GLM_figures/consistency_matrix_{}.png".format(self.results[0].save_id))
+            plt.savefig(file_prefix + "/dynamic_GLM_figures/" + mode_prefix + "consistency_matrix_{}.png".format(self.results[0].save_id))
             plt.show()
+            plt.close()
         return consistency_mat
 
-    def state_pca(self, subject, dim=2, pca_type='dists'):
-        if True:
-            dimreduc, z = pickle.load(open("multi_chain_saves/xyz_{}_{}.p".format(subject, 'prebias'), 'rb'))
+    def state_pca(self, subject, dim=2):
+        if False:
+            # load, if this is already available
+            xy, z = pickle.load(open(file_prefix + "/multi_chain_saves/xyz_{}_{}.p".format(subject, 'prebias'), 'rb'))
         else:
-            if pca_type == 'dists':
-                dist_vectors = []
-                for result in self.results:
-                    print("_")
-                    print(subject)
-                    temp = time.time()
-                    a = result.state_rsa(result.n_datapoints // 170)
-                    print(time.time() - temp)
-                    a = a.reshape(a.shape[0], a.shape[1] ** 2)
-                    dist_vectors.append(a)
-                pca_vecs = np.concatenate(dist_vectors)
-            elif pca_type == 'glm_weights':
-                dist_vectors = []
-                for result in self.results:
-                    print("_")
-                    print(subject)
-                    a = result.trial_glm_weights()
-                    dist_vectors.append(a)
-                pca_vecs = np.concatenate(dist_vectors)
+            dist_vectors = []
+            for result in self.results:  # iterate over all samples
+                temp = time.time()
+                a = result.state_rsa(result.n_datapoints // 200)  # divide datapoints in ~170 bins
+                print(time.time() - temp)
+
+                # flatten and append the matrix
+                # a = a.reshape(a.shape[0], a.shape[1] ** 2)
+                dist_vectors.append(a)
+            pca_vecs = np.concatenate(dist_vectors)
 
             print(pca_vecs.shape)
             cov = np.cov(pca_vecs.T)
-            # TODO: could maybe use np.linalg.eigh
             ev, eig = np.linalg.eigh(cov)
             ev = np.flip(ev)
             eig = np.flip(eig, axis=1)
@@ -212,9 +202,12 @@ class MCMC_result_list:
             print(ev[:10])
             projection_matrix = eig[:, :dim].T
             dimreduc = np.real(projection_matrix.dot(pca_vecs.T))
+
+            # get reduced coordinates and perform density estimation
             xy = np.vstack([dimreduc[i] for i in range(dim)])
-            from scipy.stats import gaussian_kde
             z = gaussian_kde(xy)(xy)
+
+        # plot some useful figures for finding the mode of the posterior
         plt.figure(figsize=(16, 9))
         if dim == 2:
             plt.scatter(dimreduc[0], dimreduc[1], c=z, cmap='inferno')
@@ -240,9 +233,9 @@ class MCMC_result_list:
             plt.ylabel("Dim 3")
         cbar = plt.colorbar()
         cbar.set_label("Density estimate", rotation=270, size=30, labelpad=35)
-        # plt.title("Expl. variance of first {} PCs: {}".format(dim, ev[:dim].sum()))
+        plt.title("Expl. variance of first {} PCs: {}".format(dim, ev[:dim].sum()))
         plt.tight_layout()
-        plt.savefig("dynamic_GLM_figures/PCA density {} ({} dim) {}".format(subject, dim, self.results[0].type))
+        plt.savefig(file_prefix + "/dynamic_GLM_figures/PCA density {} ({} dim) {}".format(subject, dim, self.results[0].type))
         plt.show()
 
         chains = dimreduc[0].reshape(pca_vecs.shape[0] // self.n, self.n)
@@ -254,7 +247,7 @@ class MCMC_result_list:
         plt.xlim(official_xlims)
         plt.ylim(official_ylims)
         plt.tight_layout()
-        plt.savefig("dynamic_GLM_figures/Colorful chains {} {}".format(subject, self.results[0].type))
+        plt.savefig(file_prefix + "/dynamic_GLM_figures/Colorful chains {} {}".format(subject, self.results[0].type))
         plt.close()
 
         fig = plt.figure(figsize=(16, 9))
@@ -270,10 +263,10 @@ class MCMC_result_list:
         cbar_ax = fig.add_axes([0.88, 0.15, 0.05, 0.7])
         fig.colorbar(im, cax=cbar_ax)
         plt.tight_layout()
-        plt.savefig("dynamic_GLM_figures/Individual chains {} {}".format(subject, self.results[0].type))
+        plt.savefig(file_prefix + "/dynamic_GLM_figures/Individual chains {} {}".format(subject, self.results[0].type))
         plt.close()
 
-        return ev, eig, projection_matrix, dimredu
+        return ev, eig, projection_matrix, xy, z
 
 
 class MCMC_result:
@@ -293,9 +286,9 @@ class MCMC_result:
         self.n_all_states = self.models[-1].num_states
         self.sample_lls = sample_lls
 
-        self.cont_ticks = all_cont_ticks
+        self.cont_ticks = bias_cont_ticks
 
-        self.session_contrasts = [np.unique(cont_mapping(d[:, 0] - d[:, 1])) for d in self.data]
+        # self.session_contrasts = [np.unique(cont_mapping(d[:, 0] - d[:, 1])) for d in self.data]
 
         self.count_assigns()
 
@@ -314,33 +307,33 @@ class MCMC_result:
         dist_matrices = []
         for m in self.models:
             # first, package all the state samples in sets of trials_per_bin
-            state_hists = []
-            seq_num = 0
-            seq_total = 0
-            leftovers = []
-            while (seq_num != self.n_sessions - 1) or (len(m.stateseqs[-1]) > seq_total + trials_per_bin):
+            state_hists = []  # histograms over state usage 
+            seq_num = 0  # which session are we currently considering
+            seq_total = 0  # will count how many trials of the current session we have considered already
+            leftovers = []  # last few trials of a previous session (weren't enough to fill a bin)
+            while (seq_num != self.n_sessions - 1) or (len(m.stateseqs[-1]) > seq_total + trials_per_bin):  # while not all trials are binned up
                 if len(leftovers) + len(m.stateseqs[seq_num][seq_total:]) < trials_per_bin:
+                    # if the trials remaining in the current session aren't enough...
+                    # ... just put them in the leftover list, increase the counter and set the current total to 0
                     leftovers += list(m.stateseqs[seq_num][seq_total:])
                     seq_num += 1
                     seq_total = 0
                 else:
+                    # if there are still enough trials in the current session, compute the histogram (possibly taking into account previous leftovers)
                     state_hists.append(np.bincount(leftovers + list(m.stateseqs[seq_num][seq_total:seq_total + trials_per_bin - len(leftovers)]), minlength=self.n_all_states))
                     seq_total += trials_per_bin - len(leftovers)
+                    # clear leftover
                     leftovers = []
 
-            # compute matrix of distances between dist.s
+            # compute matrix of distances between dist.s (this simply reduces to the absolute difference over state counts)
             n_bins = len(state_hists)
-            dist_matrix = np.zeros((n_bins, n_bins))
-            for i, j in np.nditer(np.triu_indices(n_bins, k=1)):
-                dist_matrix[i, j] = np.sum(np.abs(state_hists[i] - state_hists[j]))
-            # inds1, inds2 = np.triu_indices(n_bins, k=1)
-            # arg_list = [(np.zeros((n_bins, n_bins)), state_hists, (inds1[i::8], inds2[i::8])) for i in range(8)]
-            # pool = mp.Pool(8)
-            # dist_matrix = pool.starmap(dist_helper, arg_list)
-            # pool.close()
-            # dist_matrix = np.sum(dist_matrix, 0)
+            dist_matrix = np.zeros((int(n_bins * (n_bins - 1) / 2)))
+            for counter, (i, j) in enumerate(np.nditer(np.triu_indices(n_bins, k=1))):
+                dist_matrix[counter] = np.sum(np.abs(state_hists[i] - state_hists[j]))
 
-            dist_matrix += dist_matrix.T
+            # append all the distance matrices
+            # TODO: this is a waste of matrix space, it's just symmetric!
+            # dist_matrix += dist_matrix.T
             dist_matrices.append(dist_matrix)
         return np.array(dist_matrices)
 
@@ -411,6 +404,40 @@ def augment_weights(w):
     pmf = weights_to_pmf(w)
     augmented_weights[-1] = max(pmf[-2:]) - min(pmf[:2])
     return augmented_weights
+
+
+def compare_pmfs(test, states2compare, states_by_session, all_pmfs, title=""):
+    """
+       Take a set of states, and plot out their PMFs on all sessions on which they occur.
+       See how different they really are.
+
+       Takes states_by_session and all_pmfs as input from state_development
+    """
+    colors = ['blue', 'orange', 'green', 'black', 'red']
+    assert len(states2compare) <= len(colors)
+    # subtract 1 to get internal numbering
+    states2compare = [s - 1 for s in states2compare]
+    # transform desired states into the actual numbering, before ordering by bias
+    # states2compare = [key for key in test.state_mapping.keys() if test.state_mapping[key] in states2compare]
+
+    sessions = np.where(states_by_session[states2compare].sum(0))[0]
+
+    for i, state in enumerate(states2compare):
+        counter = 0
+        for j, session in enumerate(sessions):
+            plt.subplot(1, len(sessions), j + 1)
+            if i == 0:
+                plt.title(session)
+            if states_by_session[state, session] > 0:
+                plt.plot(np.where(all_pmfs[state][0])[0], (all_pmfs[state][1][counter])[all_pmfs[state][0]], c=colors[i])
+                counter += 1
+            plt.ylim(0, 1)
+            if j != 0:
+                plt.gca().set_yticks([])
+    # plt.tight_layout()
+    if title != "":
+        plt.savefig(title)
+    plt.show()
 
 def sudden_state_changes(test, state_sets, consistencies, pmf_weights, pmfs):
     """
@@ -858,10 +885,6 @@ def state_development(test, state_sets, indices, save=True, save_append='', show
         pmfs_to_score.append(np.mean(pmfs))
     # test.state_mapping = dict(zip(range(len(state_sets)), np.argsort(np.argsort(pmfs_to_score))))  # double argsort for ranks
     test.state_mapping = dict(zip(np.flip(np.argsort((states_by_session != 0).argmax(axis=1))), range(len(state_sets))))
-    if test.results[0].name == 'KS014':
-        test.state_mapping[5] = 5
-        test.state_mapping[4] = 4
-
 
     for state, trials in enumerate(state_sets):
         cmap = matplotlib.cm.get_cmap(cmaps[state]) if state < len(cmaps) else matplotlib.cm.get_cmap('Greys')
@@ -896,8 +919,7 @@ def state_development(test, state_sets, indices, save=True, save_append='', show
                 session_max = j
             trial_counter += len(state_seq)
 
-        defined_points = np.zeros(test.results[0].n_contrasts, dtype=bool)
-        defined_points[test.results[0].session_contrasts[session_max]] = True
+        defined_points = np.ones(test.results[0].n_contrasts, dtype=bool)
         if not separate_pmf:
             temp = np.sum(pmfs[:, defined_points]) / (np.sum(defined_points))
             state_color = colors[int(temp * 101 - 1)]
@@ -969,7 +991,6 @@ def state_development(test, state_sets, indices, save=True, save_append='', show
                 ax2.plot(np.where(defined_points)[0] / (len(defined_points)-1), sim_pmf[defined_points] - 1.5 + len(state_sets) - state, color='r', lw=2)
                 ax2.plot(np.where(defined_points)[0] / (len(defined_points)-1), sim_pmf[defined_points] - 1.5 + len(state_sets) - state, color='k', linestyle='--', lw=2)
 
-
     ax1.annotate("State #", (test.results[0].n_sessions - 0.05, len(state_sets) - 0.45), fontsize=14, annotation_clip=False)
     if not test.results[0].name.startswith('Sim_'):
         perf = np.zeros(test.results[0].n_sessions)
@@ -978,11 +999,13 @@ def state_development(test, state_sets, indices, save=True, save_append='', show
         while found_files < test.results[0].n_sessions:
             counter += 1
             try:
-                feedback = pickle.load(open("./session_data/{}_side_info_{}.p".format(test.results[0].name, counter), "rb"))
+                feedback = pickle.load(open(file_prefix + "/session_data/{}_side_info_{}.p".format(test.results[0].name, counter), "rb"))
             except FileNotFoundError:
                 continue
             perf[found_files] = np.mean(feedback[:, 1])
             found_files += 1
+            if counter > 1000:
+                break
         ax0.axhline(-0.5, c='k')
         ax0.axhline(0.5, c='k')
         ax0.fill_between(range(1, 1 + test.results[0].n_sessions), perf - 0.5, -0.5, color='k')
@@ -1062,13 +1085,14 @@ def state_development(test, state_sets, indices, save=True, save_append='', show
     plt.tight_layout()
     if save:
         print("saving with {} dpi".format(dpi))
-        plt.savefig("dynamic_GLM_figures/meta_state_development_{}_{}{}.png".format(test.results[0].name, separate_pmf, save_append), dpi=dpi)
+        plt.savefig(file_prefix + "/dynamic_GLM_figures/meta_state_development_{}_{}{}.png".format(test.results[0].name, separate_pmf, save_append), dpi=dpi)
     if show:
         plt.show()
+        plt.close()
     else:
         plt.close()
 
-    if subject.startswith("GLM_Sim_") and 'durs' in truth and False:
+    if test.results[0].name.startswith("GLM_Sim_") and 'durs' in truth and False:
         plt.figure(figsize=(16, 9))
         for state, trials in enumerate(state_sets):
             if state > len(truth['weights']):
@@ -1256,22 +1280,23 @@ def write_results(test, state_sets, indices, consistencies=None):
 
 if __name__ == "__main__":
 
-    fit_type = ['prebias', 'bias', 'all', 'prebias_plus', 'zoe_style'][0]
-    if fit_type == 'bias':
-        loading_info = json.load(open("canonical_infos_bias.json", 'r'))
-    elif fit_type == 'prebias':
-        loading_info = json.load(open("canonical_infos.json", 'r'))
-    subjects = []
-    regexp = re.compile(r'canonical_result_((\w|-)+)_prebias((_var_0.03)*).p')
-    for filename in os.listdir("./multi_chain_saves/"):
-        if not (filename.startswith('canonical_result_') and filename.endswith('.p')):
-            continue
-        result = regexp.search(filename)
-        if result is None:
-            continue
-        subject = result.group(1)
-        subjects.append(subject)
+    fit_type = ['prebias', 'bias', 'all', 'prebias_plus', 'zoe_style'][2]
+    # if fit_type == 'bias':
+    #     loading_info = json.load(open("canonical_infos_bias.json", 'r'))
+    # elif fit_type == 'prebias':
+    #     loading_info = json.load(open("canonical_infos.json", 'r'))
+    # subjects = []
+    # regexp = re.compile(r'canonical_result_((\w|-)+)_prebias((_var_0.03)*).p')
+    # for filename in os.listdir("./multi_chain_saves/"):
+    #     if not (filename.startswith('canonical_result_') and filename.endswith('.p')):
+    #         continue
+    #     result = regexp.search(filename)
+    #     if result is None:
+    #         continue
+    #     subject = result.group(1)
+    #     subjects.append(subject)
 
+    subjects = ['KS096']
     print(len(subjects))
     fit_variance = [0.03, 0.06, 0.12, 0.24, 0.48][0]
     dur = 'yes'
@@ -1410,7 +1435,33 @@ if __name__ == "__main__":
         ultimate_counter += 1
 
         # print(works_counter, fail_counter)
+
         states, pmfs, pmf_weights, durs, state_types, contrast_intro_type, intros_by_type, undiv_intros, states_per_type, trial_ns = state_development(test, [s for s in state_sets if len(s) > 40], mode_indices, save=True, show=True, separate_pmf=1, type_coloring=True, dpi=300, save_append=str(fit_variance).replace('.', '_'))
+        # compare_pmfs(test, [0, 1], states, pmfs)
+
+        import pyhsmm.basic.distributions as distributions
+        a = distributions.Dynamic_GLM(4, 1, np.zeros(4), np.eye(4)*4, 0.03*np.tile(np.eye(4), (1, 1, 1)))
+        a.weights[0] = pmf_weights[0][0]
+        np.exp(a.log_likelihood(np.array([[1., 0., 0., 1, 1]]), 0))
+        all_trials = np.zeros((9, 5))
+
+        all_trials[:, 0] = contrasts_R
+        all_trials[:, 1] = contrasts_L
+        all_trials[:, 3] = 1
+        all_trials[:, 4] = 0
+
+        plt.plot(np.exp(a.log_likelihood(all_trials, 0)), label='normal')
+
+        all_trials[:, 2] = -0.5
+        plt.plot(np.exp(a.log_likelihood(all_trials, 0)), label='rightwards past')
+
+        all_trials[:, 2] = 0.5
+        plt.plot(np.exp(a.log_likelihood(all_trials, 0)), label='leftwards past')
+
+        plt.legend()
+        plt.show()
+        
+        quit()
         basic_info, diffs, regressed_or_not, regression_magnitude = pmf_regressions(states, pmfs, durs)
         regressions.append(basic_info)
         regression_diffs.append(diffs)
