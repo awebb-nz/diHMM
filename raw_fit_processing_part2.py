@@ -1,13 +1,13 @@
 """
     This script is used to select samples from a mode, out of all the samples of the used MCMC chains
 
-    The code will ask to "Pick level", at which point one types in a lower threshold for the estimated sample probability (of figure ...), e.g.:
+    The code will ask to "Pick level", at which point one types in a lower threshold for the estimated sample probability (of figure "PCA density [name] (3 dim) prebias.png"), e.g.:
     5e-10
     Alternatively, if it is necessary to separate out different modes from the posterior, one can type "cond" (for adding conditions), which will cause the code
     to ask for lower and upper thresholds along all three PC dimensions (x, y, z), followed by another request for a lower density estimate limit.
 
     Given these, we compute how many samples fulfull the set conditions and their extent along all three PC dimensions. This can be used to ensure that an appropriate
-    number of samples is selected which is purely within a single desired mode. This can be confirmed by typing "yes" when asked whether one is happy.
+    number of samples is selected which is purely within a single desired mode. This can be confirmed by typing "yes" when asked whether one is happy, we typically aim for just over 400 samples.
 
     The code then asks "Subset by factor?", which can be used for highly concentrated modes which are hard to restrict to a sensible number of samples via a lower threshold.
     Respond with "yes" or "y", then give an integer n, which subsets the colletion to every nth sample which fulfills the listed conditions.
