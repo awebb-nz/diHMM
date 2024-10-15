@@ -23,7 +23,7 @@ import os
 
 
 fit_variance = 0.04
-subjects = ['KS014']
+subjects = ['ibl_witten_17']
 
 def create_mode_indices(test, subject, fit_type):
     """
