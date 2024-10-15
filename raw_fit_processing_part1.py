@@ -20,7 +20,6 @@ from mcmc_chain_analysis import state_size_helper, state_num_helper, find_good_c
 import index_mice  # executes function for creating dict of available fits
 from dyn_glm_chain_analysis import MCMC_result_list
 import sys
-from scipy.stats import gaussian_kde
 
 
 fit_type = ['prebias', 'bias', 'all', 'prebias_plus', 'zoe_style'][0]
