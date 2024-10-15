@@ -19,7 +19,6 @@ import numpy as np
 from dyn_glm_chain_analysis import MCMC_result_list, MCMC_result
 import pickle
 import matplotlib.pyplot as plt
-import os
 
 
 fit_variance = 0.04

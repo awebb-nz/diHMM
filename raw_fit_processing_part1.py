@@ -25,7 +25,7 @@ import sys
 fit_type = ['prebias', 'bias', 'all', 'prebias_plus', 'zoe_style'][0]
 file_prefix = ['.', '/usr/src/app'][0]  # cluster or local prefix
 
-subjects = ['KS014']
+subjects = ['ibl_witten_17']
 subjects = [subjects[int(sys.argv[1])]]
 
 thinning = 25  # MCMC chain thinning, drop all but every 25th sample

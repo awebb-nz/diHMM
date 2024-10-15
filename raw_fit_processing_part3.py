@@ -21,7 +21,7 @@ import scipy.cluster.hierarchy as hc
 fit_type = ['prebias', 'bias', 'all', 'prebias_plus', 'zoe_style'][0]
 file_prefix = ['.', '/usr/src/app'][0]
 
-subjects = ['KS014']
+subjects = ['ibl_witten_17']
 subjects = [subjects[int(sys.argv[1])]]
 fit_variance = [0.04][0]
 
