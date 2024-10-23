@@ -114,7 +114,7 @@ class MCMC_result_list:
         local_chains = self.rank_normalised if rank_norm else self.chains
         local_var_hat_plus = self.rank_normed_var_hat_plus if rank_norm else self.lame_var_hat_plus
 
-        local_var_hat_plus = min(local_var_hat_plus, 0.00001)  # avoid division by zero
+        local_var_hat_plus = max(local_var_hat_plus, 0.00001)  # avoid division by zero
 
         # Estimate sample auto-correlation (could be done with Fourier, but Gelman doesn't elaborate)
         while True:
