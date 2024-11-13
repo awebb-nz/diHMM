@@ -49,8 +49,6 @@ subjects = ['CSHL045', 'CSHL047', 'CSHL049', 'CSHL051', 'CSHL052', 'CSHL053', 'C
            'ibl_witten_13', 'ibl_witten_14', 'ibl_witten_16', 'ibl_witten_17', 'ibl_witten_18', 'ibl_witten_19', 'ibl_witten_20', 'ibl_witten_25', 'ibl_witten_26',
            'ibl_witten_27', 'ibl_witten_29', 'ibl_witten_32']
 
-subjects = ['KS014']
-
 num_subjects = len(subjects)
 subjects = [a for a in subjects for i in range(2)] # how often is subject needed, i.e. number of chains or cross-validation folds or seeds for chains
 seeds = [101] * num_subjects
