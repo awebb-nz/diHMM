@@ -1,4 +1,15 @@
 
-__pycache__
 .env*
 .python-version
+consistency/
+__pycache__/
+dynamic_GLM_figures/
+dynamic_GLMiHMM_crossvals/
+figures/
+lenca_data/
+multi_chain_saves/
+session_data/
+session_data_lenca/
+session_data_safe/
+temp*
+*.png
