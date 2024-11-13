@@ -572,9 +572,9 @@ def contrasts_plot(test, state_sets, subject, save=False, show=False, dpi='figur
     total = 0
 
     for seq_num in range(n):
-        if seq_num + 1 != 12:
-            trial_counter += len(test.results[0].models[0].stateseqs[seq_num])
-            continue
+        # if seq_num + 1 != 12:
+        #     trial_counter += len(test.results[0].models[0].stateseqs[seq_num])
+        #     continue
         c_n_a = test.results[0].data[seq_num]
 
         plt.figure(figsize=(18, 9))
@@ -620,11 +620,11 @@ def contrasts_plot(test, state_sets, subject, save=False, show=False, dpi='figur
             plt.plot(np.where(mask)[0], 0.5 + 0.25 * (all_conts[cont_mapping(- c_n_a[mask, 0] + c_n_a[mask, 1])]), 'o', c='r', ms=ms, label='Rightward', alpha=0.6)
 
 
-        for trial in range(250, 450):
-            if state_consistencies[5][trial] > 0.5 and all_conts[cont_mapping(- c_n_a[trial, 0] + c_n_a[trial, 1])] < 0 and c_n_a[trial, -1] == 1:
-                plt.gca().annotate("", xytext=(trial - 2, 0.468 + 0.25 * (all_conts[cont_mapping(- c_n_a[trial, 0] + c_n_a[trial, 1])])), xy=(trial - 0.25, 0.493 + 0.25 * (all_conts[cont_mapping(- c_n_a[trial, 0] + c_n_a[trial, 1])])), xycoords='data', arrowprops=dict(facecolor='black', headwidth=7.5, headlength=7.5, width=2))
-            if state_consistencies[6][trial] > 0.5 and all_conts[cont_mapping(- c_n_a[trial, 0] + c_n_a[trial, 1])] > 0 and c_n_a[trial, -1] == 0:
-                plt.gca().annotate("", xytext=(trial - 2, 0.468 + 0.25 * (all_conts[cont_mapping(- c_n_a[trial, 0] + c_n_a[trial, 1])])), xy=(trial - 0.25, 0.493 + 0.25 * (all_conts[cont_mapping(- c_n_a[trial, 0] + c_n_a[trial, 1])])), xycoords='data', arrowprops=dict(facecolor='black', headwidth=7.5, headlength=7.5, width=2))
+        # for trial in range(250, 450):
+        #     if state_consistencies[5][trial] > 0.5 and all_conts[cont_mapping(- c_n_a[trial, 0] + c_n_a[trial, 1])] < 0 and c_n_a[trial, -1] == 1:
+        #         plt.gca().annotate("", xytext=(trial - 2, 0.468 + 0.25 * (all_conts[cont_mapping(- c_n_a[trial, 0] + c_n_a[trial, 1])])), xy=(trial - 0.25, 0.493 + 0.25 * (all_conts[cont_mapping(- c_n_a[trial, 0] + c_n_a[trial, 1])])), xycoords='data', arrowprops=dict(facecolor='black', headwidth=7.5, headlength=7.5, width=2))
+        #     if state_consistencies[6][trial] > 0.5 and all_conts[cont_mapping(- c_n_a[trial, 0] + c_n_a[trial, 1])] > 0 and c_n_a[trial, -1] == 0:
+        #         plt.gca().annotate("", xytext=(trial - 2, 0.468 + 0.25 * (all_conts[cont_mapping(- c_n_a[trial, 0] + c_n_a[trial, 1])])), xy=(trial - 0.25, 0.493 + 0.25 * (all_conts[cont_mapping(- c_n_a[trial, 0] + c_n_a[trial, 1])])), xycoords='data', arrowprops=dict(facecolor='black', headwidth=7.5, headlength=7.5, width=2))
 
 
         plt.title("session #{} / {}".format(1+seq_num, test.results[0].n_sessions), size=36)
@@ -648,7 +648,7 @@ def contrasts_plot(test, state_sets, subject, save=False, show=False, dpi='figur
         plt.xlabel('Trial', size=36)
         sns.despine()
 
-        plt.xlim(left=250, right=450)
+        # plt.xlim(left=250, right=450)
         if test.results[0].name == 'KS014':
             handles, labels = plt.gca().get_legend_handles_labels()
             order = [1, 0, 2, 3, 4]
@@ -1010,6 +1010,7 @@ def state_development(test, state_sets, indices, save=True, save_append='', show
                 break
         ax0.axhline(-0.5, c='k')
         ax0.axhline(0.5, c='k')
+        print(perf)
         ax0.fill_between(range(1, 1 + test.results[0].n_sessions), perf - 0.5, -0.5, color='k')
 
     if not test.results[0].name.startswith('GLM_Sim_') and not test.results[0].name.startswith('fip_'):
@@ -1163,6 +1164,184 @@ def smart_divide(a, b):
     c[~d] = a[~d] / b[~d]
     return c
 
+def predictive_check(test, trials, indices):
+
+    decay = 0.25
+    perseveration_filter_normalization = np.exp(- decay * np.arange(5000)).sum()
+    decay_const = np.exp(- decay)
+
+    true_accs = []
+    gen_accs = []
+    gen_accs_save = []
+    gen_accs_50 = []
+    gen_accs_95 = []
+
+    true_pers = []
+    gen_pers = []
+    gen_pers_save = []
+    gen_pers_50 = []
+    gen_pers_95 = []
+
+    for session in range(test.results[0].n_sessions):
+        print(session)
+        datas = test.results[0].data[session]
+
+        responses = np.zeros(datas.shape[0])
+        all_resp = []
+        for index in list(indices) * 2:
+            model = [item for sublist in test.results for item in sublist.models][index]
+            curr_state = model.stateseqs[session][0]
+
+            trial_list = []
+            perf_list = []
+
+            # simulate from the modle giving the starting state
+            generated_trials = 0
+            perseveration = 0
+            while generated_trials < datas.shape[0]:
+                p, r = model.dur_distns[curr_state].p_save, model.dur_distns[curr_state].r
+                state_trials = np.random.poisson(np.random.gamma(r, p / (1 - p)))
+
+                trial_list.append(min(state_trials, datas.shape[0] - generated_trials))
+                perf_list.append(pmf_to_perf(weights_to_pmf(model.obs_distns[curr_state].weights[session])))
+
+                for i in range(state_trials):
+                    if generated_trials + i >= datas.shape[0]:
+                        break
+                    local_data = datas[generated_trials + i, :-1]
+                    # replace with actual, model-generated perseveration
+                    local_data[2] = perseveration / perseveration_filter_normalization
+
+                    responses[generated_trials + i] = model.obs_distns[curr_state].rvs([local_data.reshape(1, 4)], [session])[0][-1][-1]  # lots to unpack
+
+                    perseveration = (responses[generated_trials + i] * 2 - 1) + perseveration * decay_const
+                generated_trials += state_trials
+
+                # get the next state
+                curr_state = np.random.choice(15, p=model.trans_distn.trans_matrix[curr_state])
+
+            all_resp.append(responses.copy())
+
+        true_accs.append(compute_accuracy(datas, datas[:, -1]))
+        all_accs = [compute_accuracy(datas, resp) for resp in all_resp]
+        gen_accs.append(np.mean(all_accs))
+        gen_accs_save.append([compute_accuracy(datas, resp) for resp in all_resp])
+        gen_accs_50.append([np.percentile(all_accs, 25), np.percentile(all_accs, 75)])
+        gen_accs_95.append([np.percentile(all_accs, 2.5), np.percentile(all_accs, 97.5)])
+
+        true_pers.append(compute_perseveration(datas, datas[:, -1]))
+        all_pers = [compute_perseveration(datas, resp) for resp in all_resp]
+        gen_pers.append(np.mean(all_pers))
+        gen_pers_save.append([compute_perseveration(datas, resp) for resp in all_resp])
+        gen_pers_50.append([np.percentile(all_pers, 25), np.percentile(all_pers, 75)])
+        gen_pers_95.append([np.percentile(all_pers, 2.5), np.percentile(all_pers, 97.5)])
+
+        true_pmf = compute_pmf(datas, datas[:, -1])
+        gen_pmf = [compute_pmf(datas, resp) for resp in all_resp]
+
+        plt.figure(figsize=(16, 9))
+        plt.plot(true_pmf, 'k', zorder=3, label='Empirical')
+        plt.plot(np.mean(gen_pmf, axis=0), 'g', zorder=2, label='Generated mean')
+        percentiles = np.percentile(gen_pmf, [25, 75], axis=0)
+        plt.fill_between(range(len(true_pmf)), percentiles[0], percentiles[1], color='b', zorder=1, alpha=0.25, label='Generated 50% CI')
+        percentiles = np.percentile(gen_pmf, [2.5, 97.5], axis=0)
+        plt.fill_between(range(len(true_pmf)), percentiles[0], percentiles[1], color='r', zorder=0, alpha=0.1, label='Generated 95% CI')
+
+        if len(true_pmf) == 4:
+            plt.xticks(range(4), [-1, -0.5, 0.5, 1])
+        elif len(true_pmf) == 6:
+            plt.xticks(range(6), [-1, -0.5, -0.25, 0.25, 0.5, 1])
+        elif len(true_pmf) == 8:
+            plt.xticks(range(8), [-1, -0.5, -0.25, -0.125, 0.125, 0.25, 0.5, 1])
+        elif len(true_pmf) == 10:
+            plt.xticks(range(10), [-1, -0.5, -0.25, -0.125, -0.0625, 0.0625, 0.125, 0.25, 0.5, 1])
+        elif len(true_pmf) == 11:
+            plt.xticks(range(11), [-1, -0.5, -0.25, -0.125, -0.0625, 0, 0.0625, 0.125, 0.25, 0.5, 1])
+        elif len(true_pmf) == 9:
+            plt.xticks(range(9), [-1, -0.25, -0.125, -0.0625, 0, 0.0625, 0.125, 0.25, 1])
+
+        plt.legend(frameon=False, fontsize=24)
+        plt.xlim(0, len(true_pmf) - 1)
+        plt.gca().spines[['right', 'top']].set_visible(False)
+        plt.gca().tick_params(axis='both', which='major', labelsize=21)
+        plt.xlabel("Contrast", size=30)
+        plt.ylabel("% rightwards responses", size=30)
+        plt.ylim(0, 1)
+        plt.title("Session {}".format(session + 1), size=30)
+        plt.savefig("pmf_check_{}_{}.png".format(test.results[0].name, session))
+        plt.close()
+
+
+    plt.figure(figsize=(16, 9))
+    plt.plot(range(1, 1 + len(true_accs)), true_accs, 'k', zorder=3, label='Empirical')
+    plt.plot(range(1, 1 + len(true_accs)), gen_accs, 'g', zorder=2, label='Generated mean')
+    plt.fill_between(range(1, 1 + len(true_accs)), np.array(gen_accs_50)[:, 0], np.array(gen_accs_50)[:, 1], color='b', zorder=1, alpha=0.25, label='Generated 50% CI')
+    plt.fill_between(range(1, 1 + len(true_accs)), np.array(gen_accs_95)[:, 0], np.array(gen_accs_95)[:, 1], color='r', zorder=0, alpha=0.1, label='Generated 95% CI')
+
+    plt.legend(frameon=False, fontsize=24)
+    plt.gca().spines[['right', 'top']].set_visible(False)
+    plt.gca().tick_params(axis='both', which='major', labelsize=21)
+    plt.xlabel("Session", size=30)
+    plt.ylabel("Reward rate", size=30)
+    plt.ylim(0, 1)
+    plt.savefig("all_pred_check_{}_{}.png".format('acc', test.results[0].name))
+    plt.close()
+
+
+    plt.figure(figsize=(16, 9))
+    plt.plot(range(1, 1 + len(true_pers)), true_pers, 'k', zorder=3, label='Empirical')
+    plt.plot(range(1, 1 + len(true_pers)), gen_pers, 'g', zorder=2, label='Generated mean')
+    plt.fill_between(range(1, 1 + len(true_accs)), np.array(gen_pers_50)[:, 0], np.array(gen_pers_50)[:, 1], color='b', zorder=1, alpha=0.25, label='Generated 50% CI')
+    plt.fill_between(range(1, 1 + len(true_accs)), np.array(gen_pers_95)[:, 0], np.array(gen_pers_95)[:, 1], color='r', zorder=0, alpha=0.1, label='Generated 95% CI')
+
+    plt.legend(frameon=False, fontsize=24)
+    plt.gca().spines[['right', 'top']].set_visible(False)
+    plt.gca().tick_params(axis='both', which='major', labelsize=21)
+    plt.xlabel("Session", size=30)
+    plt.ylabel("Response correlation", size=30)
+    plt.ylim(0, 0.6)
+    plt.savefig("all_pred_check_{}_{}.png".format('pers', test.results[0].name))
+    plt.close()
+
+    # find out in which percentiles the accuracies lie
+    print(all_accs)
+    acc_percentiles = calculate_true_percentiles(true_accs, gen_accs_save)
+    pers_percentiles = calculate_true_percentiles(true_pers, gen_pers_save)
+
+    return acc_percentiles, pers_percentiles
+
+def compute_accuracy(inputs, responses):
+    # inputs: n_trials x 4, responses: n_trials
+    right = inputs[:, 0] > 0
+    left = inputs[:, 1] > 0
+    zeros = np.logical_and(inputs[:, 0] == 0, inputs[:, 1] == 0)
+                           
+    correct = np.zeros_like(responses)
+    correct[left & (responses == 1)] = 1
+    correct[right & (responses == 0)] = 1
+    correct[zeros] = 0.5
+
+    return np.mean(correct)
+
+def compute_perseveration(inputs, responses):
+    # inputs: responses: n_trials
+    
+    return np.corrcoef(responses[:-1], responses[1:])[0, 1]
+
+def compute_pmf(inputs, responses):
+    conts = inputs[:, 0] - inputs[:, 1]
+    perfs = np.zeros(len(np.unique(conts)))
+    for i, c in enumerate(np.unique(conts)):
+        perfs[i] = np.mean(responses[conts == c])
+
+    return 1 - perfs
+
+def calculate_true_percentiles(trues, gens):
+    percentiles = []
+    for true, gen in zip(trues, gens):
+        # Compute the percentile rank of the true accuracy within the generated accuracies array
+        percentiles.append(np.sum(gen < true) / len(gen))
+    return percentiles
 
 def dist_helper(dist_matrix, state_hists, inds):
     for i, j in np.nditer(inds):
@@ -1282,7 +1461,7 @@ def write_results(test, state_sets, indices, consistencies=None):
 
 if __name__ == "__main__":
 
-    fit_type = ['prebias', 'bias', 'all', 'prebias_plus', 'zoe_style'][2]
+    fit_type = ['prebias', 'bias', 'all', 'prebias_plus', 'zoe_style'][0]
     # if fit_type == 'bias':
     #     loading_info = json.load(open("canonical_infos_bias.json", 'r'))
     # elif fit_type == 'prebias':
@@ -1298,9 +1477,21 @@ if __name__ == "__main__":
     #     subject = result.group(1)
     #     subjects.append(subject)
 
-    subjects = ['KS096']
+    subjects = ['CSHL058', 'CSHL059', 'CSHL060', 'CSHL_007', 'CSHL_014', 'CSHL_015',
+           'CSHL_020', 'CSH_ZAD_001', 'CSH_ZAD_011', 'CSH_ZAD_017', 'CSH_ZAD_019', 'CSH_ZAD_022', 'CSH_ZAD_024', 'CSH_ZAD_025', 'CSH_ZAD_026', 'CSH_ZAD_029', 'DY_008',
+           'DY_009', 'DY_010', 'DY_011', 'DY_013', 'DY_014', 'DY_016', 'DY_018', 'DY_020', 'KS014', 'KS015', 'KS016', 'KS017', 'KS019', 'KS021', 'KS022', 'KS023',
+           'KS042', 'KS043', 'KS044', 'KS045', 'KS046', 'KS051', 'KS052', 'KS055', 'KS084', 'KS086', 'KS091', 'KS094', 'KS096', 'MFD_05', 'MFD_06', 'MFD_07', 'MFD_08',
+           'MFD_09', 'NR_0017', 'NR_0019', 'NR_0020', 'NR_0021', 'NR_0024', 'NR_0027', 'NR_0028', 'NR_0029', 'NR_0031', 'NYU-06', 'NYU-11', 'NYU-12', 'NYU-21', 'NYU-27',
+           'NYU-30', 'NYU-37', 'NYU-39', 'NYU-40', 'NYU-45', 'NYU-46', 'NYU-47', 'NYU-48', 'NYU-65', 'PL015', 'PL016', 'PL017', 'PL024', 'PL030', 'PL031', 'PL033',
+           'PL034', 'PL035', 'PL037', 'PL050', 'SWC_021', 'SWC_022', 'SWC_023', 'SWC_038', 'SWC_039', 'SWC_042', 'SWC_043', 'SWC_052', 'SWC_053', 'SWC_054', 'SWC_058',
+           'SWC_060', 'SWC_061', 'SWC_065', 'SWC_066', 'UCLA005', 'UCLA006', 'UCLA011', 'UCLA012', 'UCLA014', 'UCLA015', 'UCLA017', 'UCLA030', 'UCLA033', 'UCLA034',
+           'UCLA035', 'UCLA036', 'UCLA037', 'UCLA044', 'UCLA048', 'UCLA049', 'UCLA052', 'ZFM-01576', 'ZFM-01577', 'ZFM-01592', 'ZFM-01935', 'ZFM-01936', 'ZFM-01937',
+           'ZFM-02368', 'ZFM-02369', 'ZFM-02370', 'ZFM-02372', 'ZFM-02373', 'ZFM-04308', 'ZFM-05236', 'ZM_1897', 'ZM_1898', 'ZM_2240', 'ZM_2241', 'ZM_2245', 'ZM_3003',
+           'ibl_witten_13', 'ibl_witten_14', 'ibl_witten_16', 'ibl_witten_17', 'ibl_witten_18', 'ibl_witten_19', 'ibl_witten_20', 'ibl_witten_25', 'ibl_witten_26',
+           'ibl_witten_27', 'ibl_witten_29', 'ibl_witten_32']
+    # done: 'UCLA006', 'CSHL045', 'CSHL047', 'CSHL049', 'CSHL051', 'CSHL052', 'CSHL053', 'CSHL054', 'CSHL055', 
     print(len(subjects))
-    fit_variance = [0.03, 0.06, 0.12, 0.24, 0.48][0]
+    fit_variance = 0.04
     dur = 'yes'
 
     in_sess_appear_n_bins = 20
@@ -1344,6 +1535,8 @@ if __name__ == "__main__":
     regression_magnitude_list = []
     dates_list = []
 
+    all_accs, all_pers = [], []
+
     new_counter, transform_counter = 0, 0
     state_types_interpolation = np.zeros((3, 150))
     all_state_types = []
@@ -1359,8 +1552,8 @@ if __name__ == "__main__":
     fail_counter = 0
     check_yes = []
 
-    for subject in sorted(subjects):
-        if subject.startswith('GLM_Sim_') or subject.startswith('fip_') or subject in ['SWC_065', 'ZFM-05245', 'ZFM-04019', 'ibl_witten_18', 'NYU-12', 'UCLA015', 'CSHL062', 'CSHL_018', 'CSHL061']:
+    for subject in subjects:
+        if subject.startswith('GLM_Sim_') or subject.startswith('fip_'): # or subject in ['SWC_065', 'ZFM-05245', 'ZFM-04019', 'ibl_witten_18', 'NYU-12', 'UCLA015', 'CSHL062', 'CSHL_018', 'CSHL061']:
         #     # ibl_witten_18 is a weird one, super good session in the middle, ending phase 1, never to re-appear, bad at the end
         #     # ZFM-05245 is neuromodulator mouse, never reaches ephys it seems... same for ZFM-04019
         #     # SWC_065 never reaches type 3
@@ -1438,31 +1631,24 @@ if __name__ == "__main__":
 
         # print(works_counter, fail_counter)
 
-        states, pmfs, pmf_weights, durs, state_types, contrast_intro_type, intros_by_type, undiv_intros, states_per_type, trial_ns = state_development(test, [s for s in state_sets if len(s) > 40], mode_indices, save=True, show=True, separate_pmf=1, type_coloring=True, dpi=300, save_append=str(fit_variance).replace('.', '_'))
+        try:
+            acc_percentiles, pers_percentiles = predictive_check(test, [s for s in state_sets if len(s) > 40], mode_indices)
+            pickle.dump(acc_percentiles, open("temp_acc_percentiles_{}".format(subject), 'wb'))
+            pickle.dump(pers_percentiles, open("temp_per_percentiles_{}".format(subject), 'wb'))
+        except:
+            continue
+        continue
+
+
+        # states, pmfs, pmf_weights, durs, state_types, contrast_intro_type, intros_by_type, undiv_intros, states_per_type, trial_ns = state_development(test, [s for s in state_sets if len(s) > 40], mode_indices, save=True, show=True, separate_pmf=1, type_coloring=True, dpi=300, save_append=str(fit_variance).replace('.', '_'))
         # compare_pmfs(test, [0, 1], states, pmfs)
-
-        import pyhsmm.basic.distributions as distributions
-        a = distributions.Dynamic_GLM(4, 1, np.zeros(4), np.eye(4)*4, 0.03*np.tile(np.eye(4), (1, 1, 1)))
-        a.weights[0] = pmf_weights[0][0]
-        np.exp(a.log_likelihood(np.array([[1., 0., 0., 1, 1]]), 0))
-        all_trials = np.zeros((9, 5))
-
-        all_trials[:, 0] = contrasts_R
-        all_trials[:, 1] = contrasts_L
-        all_trials[:, 3] = 1
-        all_trials[:, 4] = 0
-
-        plt.plot(np.exp(a.log_likelihood(all_trials, 0)), label='normal')
-
-        all_trials[:, 2] = -0.5
-        plt.plot(np.exp(a.log_likelihood(all_trials, 0)), label='rightwards past')
-
-        all_trials[:, 2] = 0.5
-        plt.plot(np.exp(a.log_likelihood(all_trials, 0)), label='leftwards past')
-
-        plt.legend()
-        plt.show()
         
+        try:
+            consistencies = pickle.load(open("multi_chain_saves/first_mode_consistencies_{}_{}".format(subject, fit_type) + fit_var * "_var_{}".format(fit_variance) + '.p', 'rb'))
+        except FileNotFoundError:
+            consistencies = pickle.load(open("multi_chain_saves/consistencies_{}_{}".format(subject, fit_type) + fit_var * "_var_{}".format(fit_variance) + '.p', 'rb'))
+        consistencies /= consistencies[0, 0]
+        contrasts_plot(test, [s for s in state_sets if len(s) > 40], dpi=300, subject=subject, save=True, show=True, consistencies=consistencies, CMF=False)
         quit()
         basic_info, diffs, regressed_or_not, regression_magnitude = pmf_regressions(states, pmfs, durs)
         regressions.append(basic_info)
@@ -1485,13 +1671,6 @@ if __name__ == "__main__":
         all_state_percentages.append(states)
 
         abs_state_durs.append(durs)
-
-        try:
-            consistencies = pickle.load(open("multi_chain_saves/first_mode_consistencies_{}_{}".format(subject, fit_type) + fit_var * "_var_{}".format(fit_variance) + '.p', 'rb'))
-        except FileNotFoundError:
-            consistencies = pickle.load(open("multi_chain_saves/consistencies_{}_{}".format(subject, fit_type) + fit_var * "_var_{}".format(fit_variance) + '.p', 'rb'))
-        consistencies /= consistencies[0, 0]
-        contrasts_plot(test, [s for s in state_sets if len(s) > 40], dpi=300, subject=subject, save=True, show=True, consistencies=consistencies, CMF=False)
 
         # state_dict, session_dict = write_results(test, [s for s in state_sets if len(s) > 40], mode_indices)
         # pickle.dump(state_dict, open("sofiya_data/state_dict_{}".format(subject), 'wb'))
@@ -1654,6 +1833,7 @@ if __name__ == "__main__":
         pickle.dump(dates_list, open("multi_chain_saves/dates_list.p", 'wb'))
 
     print("Ultimate count is {}".format(ultimate_counter))
+    quit()
 
     if True:
         abs_state_durs = pickle.load(open("multi_chain_saves/abs_state_durs.p", 'rb'))
