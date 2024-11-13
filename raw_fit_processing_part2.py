@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 
 
 fit_variance = 0.04
-subjects = ['ibl_witten_17']
+subjects = ['DY_013']
 
 def create_mode_indices(test, subject, fit_type):
     """
@@ -166,11 +166,14 @@ elif fit_type == 'all':
     loading_info = json.load(open("canonical_infos_all_fitvar_{}.json".format(fit_variance), 'r'))
 
 for subject in subjects:
-    test = pickle.load(open("multi_chain_saves/canonical_result_{}_{}_var_{}.p".format(subject, fit_type, fit_variance), 'rb'))
+    try:
+        test = pickle.load(open("multi_chain_saves/canonical_result_{}_{}_var_{}.p".format(subject, fit_type, fit_variance), 'rb'))
 
-    info_dict = pickle.load(open("./session_data/{}_info_dict.p".format(subject), "rb"))
-    test.results[0].infos = info_dict  # posthoc adding of info
-    test.results[0].n_contrasts = 11
-    pickle.dump(test, open("multi_chain_saves/canonical_result_{}_{}_var_{}.p".format(subject, fit_type, fit_variance), 'wb'))
-    print('Computing sub result')
-    create_mode_indices(test, subject, fit_type)
+        info_dict = pickle.load(open("./session_data/{}_info_dict.p".format(subject), "rb"))
+        test.results[0].infos = info_dict  # posthoc adding of info
+        test.results[0].n_contrasts = 11
+        pickle.dump(test, open("multi_chain_saves/canonical_result_{}_{}_var_{}.p".format(subject, fit_type, fit_variance), 'wb'))
+        print('Computing sub result')
+        create_mode_indices(test, subject, fit_type)
+    except:
+        continue
