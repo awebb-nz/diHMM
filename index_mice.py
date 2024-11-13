@@ -11,12 +11,13 @@ bias_subinfo = {}
 
 fitvar = '0.04'
 
-file_prefix = ['.', '/usr/src/app'][1]
+file_prefix = ['./', '/usr/src/app/'][0]
+data_folder = "dynamic_GLMiHMM_crossvals"
 
-verificator = lambda x: '/summarised_sessions/0_25/' in x['file_name'] and x['fit_variance'] == 0.04 and ('dur' not in x or x['dur'] == 'yes') and np.array_equal(x['dur_params']['r_support'], np.arange(5, 705)) and x['n_states'] == 15 and x['gamma_a_0'] == 0.001 and x['gamma_b_0'] == 1000 and x['alpha_a_0'] == 0.01 and x['alpha_b_0'] == 100
+verificator = lambda x: '/summarised_sessions/0_25/' in x['file_name'] and x['fit_variance'] == 0.04 and ('dur' not in x or x['dur'] == 'yes') and np.array_equal(x['dur_params']['r_support'], np.arange(5, 705)) and x['n_states'] == 15 and x['gamma_a_0'] == 0.01 and x['gamma_b_0'] == 100 and x['alpha_a_0'] == 0.01 and x['alpha_b_0'] == 100
 
 # look through all files
-for filename in os.listdir(file_prefix + "/whole_fits/"):
+for filename in os.listdir(file_prefix + data_folder + "/"):
     if not filename.endswith('.p'):
         continue
 
@@ -32,7 +33,7 @@ for filename in os.listdir(file_prefix + "/whole_fits/"):
     chain_num = result.group(6)
 
     # KS014_0.04_102_522.json
-    infos = json.load(open(file_prefix + "/whole_fits/infos/" + "{}_{}_{}_{}.json".format(subject, fitvar, seed, fit_num), 'r'))
+    infos = json.load(open(file_prefix + data_folder + "/infos/" + "{}_{}_{}_{}.json".format(subject, fitvar, seed, fit_num), 'r'))
     if not verificator(infos):
         continue
 
