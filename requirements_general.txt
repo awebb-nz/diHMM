@@ -1,0 +1,11 @@
+numpy<2.0.0
+scipy
+matplotlib
+cython
+nose
+future
+requests
+wheel
+jupyterlab
+pandas
+seaborn
