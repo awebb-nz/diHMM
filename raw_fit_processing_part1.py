@@ -24,12 +24,12 @@ import argparse
 
 
 
-def sample_dimensionality_reduction(test, subject, file_prefix, fit_type, fit_variance):
+def sample_dimensionality_reduction(test, subject, output_file):
     dim = 3 # number of dimensions to reduce to
 
     print('Doing PCA')
     _, _, _, xy, z = test.state_pca(subject, dim=dim)#, save_add="_var_{}".format(fit_variance).replace('.', '_'))
-    pickle.dump((xy, z), open(file_prefix + "/multi_chain_saves/xyz_{}_{}_var_{}.p".format(subject, fit_type, fit_variance), 'wb'))
+    pickle.dump((xy, z), open(output_file, 'wb'))
 
 
 def run_subjects(subjects, file_prefix, data_folder, fit_type, fit_variance, prethinned, thinning):
@@ -166,7 +166,10 @@ def run_subjects(subjects, file_prefix, data_folder, fit_type, fit_variance, pre
         test.r_hat_and_ess(alpha_func, True)
 
         print('Computing sub result')
-        sample_dimensionality_reduction(test, subject, fit_type)
+        pca_filename = os.path.join(file_prefix,
+                                    "multi_chain_saves",
+                                    f"xyz_{subject}_{fit_type}_var_{fit_variance}.p")
+        sample_dimensionality_reduction(test, subject, pca_filename)
 
 
 if __name__ == "__main__":
@@ -194,6 +197,6 @@ if __name__ == "__main__":
 
     fit_variance = 0.04
 
-    index_mice.index_mice(file_prefix, data_folder, fit_variance)
+    # index_mice.index_mice(file_prefix, data_folder, fit_variance)
 
     run_subjects(subjects, file_prefix, data_folder, fit_type, fit_variance, prethinned, thinning)
