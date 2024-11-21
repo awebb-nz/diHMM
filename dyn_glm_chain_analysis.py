@@ -1000,14 +1000,14 @@ def state_development(test, state_sets, indices, save=True, save_append='', show
         counter = test.results[0].infos['bias_start'] - 1 if test.results[0].type == 'bias' else -1
         while found_files < test.results[0].n_sessions:
             counter += 1
+            if counter > 1000:
+                break
             try:
                 feedback = pickle.load(open(file_prefix + "/session_data/{}_side_info_{}.p".format(test.results[0].name, counter), "rb"))
             except FileNotFoundError:
                 continue
             perf[found_files] = np.mean(feedback[:, 1])
             found_files += 1
-            if counter > 1000:
-                break
         ax0.axhline(-0.5, c='k')
         ax0.axhline(0.5, c='k')
         print(perf)
